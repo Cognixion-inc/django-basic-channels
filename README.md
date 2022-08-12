@@ -2,9 +2,7 @@
 
 Tutorial link: https://youtu.be/cw8-KFVXpTE
 
+## Starting project
 
-## Cloning and starting project
-1. - git clone https://github.com/divanov11/django-channels-basic-chat
-2. - cd django-channels-basic-chat
-3. - pip install -r requirements.txt
-4. - python manage.py runserver
+1. - pip3 install -r requirements.txt
+2. - python3 manage.py runserver
