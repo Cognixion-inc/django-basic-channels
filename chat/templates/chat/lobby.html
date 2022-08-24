@@ -1,49 +1,124 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <title>Lobby</title>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/p5.min.js"></script>
 </head>
+
 <body>
-    <h1>Lets chat!</h1>
+    <h1>Kishu Overt Assessment</h1>
 
-    <form id="form">
-        <input type="text" name="message"/>
-    </form>
-
-    <div id="messages"></div>
+    <h3>
+        <div id="messages">Connecting to board. Please wait...</div>
+    </h3>
 
     <script type="text/javascript">
         let url = `ws://${window.location.host}/ws/socket-server/`
 
         const chatSocket = new WebSocket(url)
 
-        chatSocket.onmessage = function(e){
-            let data = JSON.parse(e.data)
-            console.log('Data:', data)
+        chatSocket.onopen = function (e) {
+            chatSocket.send(JSON.stringify({
+                'message': 'Ready to Begin!'
+            }))
+        }
 
-            if(data.type === 'chat'){
-                let messages = document.getElementById('messages')
+        let m = 0;
+        let diameter = 200;
+        let start;
 
-                messages.insertAdjacentHTML('beforeend', `<div>
-                                        <p>${data.message}</p>
-                                    </div>`)
+        function setup() {
+            createCanvas(1000, 600);
+            noStroke();
+            fill(m);
+            frameRate(10);
+
+            b = createButton("Start");
+            b.position(9, 120);
+            b.size(50)
+            b.mousePressed(animate);
+            ssvep = new animator();
+        }
+
+        function animator() {
+            this.animate = 0;
+            this.update = function () {
+                if (this.animate == 1) {
+                    cond1 = frameCount <= start + 100;
+                    cond2 = frameCount > start + 150 && frameCount <= start + 250;
+                    cond3 = frameCount > start + 300 && frameCount <= start + 400;
+
+                    pause1 = frameCount > start + 100 && frameCount <= start + 150;
+                    pause2 = frameCount > start + 250 && frameCount <= start + 300;
+
+                    if (cond1 || cond2 || cond3) {
+                        if (frameCount === start + 151 || frameCount === start + 301) {
+                            chatSocket.send(JSON.stringify({
+                                'message': 'Start!'
+                            }))
+                        }
+                        background(200, 200, 200);
+                        ellipse(width / 2, height / 2, diameter, diameter);
+
+                        if (m === 0) {
+                            m = 255;
+                        } else {
+                            m = 0;
+                        }
+
+                        fill(m);
+                    } else if (pause1 || pause2) {
+                        ellipse(width / 2, height / 2, diameter, diameter);
+                        fill(200, 200, 200)
+                        if (frameCount === start + 101 || frameCount === start + 251) {
+                            chatSocket.send(JSON.stringify({
+                                'message': 'Done!'
+                            }))
+                        }
+                    } else {
+                        ellipse(width / 2, height / 2, diameter, diameter);
+                        fill(200, 200, 200)
+                        noLoop();
+                        chatSocket.send(JSON.stringify({
+                            'message': 'Complete!'
+                        }))
+                        let finalMessage = document.getElementById('messages')
+                        finalMessage.innerHTML = "Computing Metrics...";
+                    }
+                }
             }
         }
 
-        let form = document.getElementById('form')
-        form.addEventListener('submit', (e)=> {
-            e.preventDefault()
-            let message = e.target.message.value 
+        function draw() {
+            ssvep.update();
+        }
+
+        function animate() {
+            ssvep.animate = 1;
             chatSocket.send(JSON.stringify({
-                'message':message
+                'message': 'Start!'
             }))
-            form.reset()
-        })
+            start = frameCount;
+        }
+
+        chatSocket.onmessage = function (e) {
+            let data = JSON.parse(e.data)
+            console.log('Data:', data)
+
+            if (data.type === 'chat') {
+                let messages = document.getElementById('messages')
+
+                messages.innerHTML = data.message;
+            }
+
+        }
 
     </script>
+
 </body>
+
 </html>
