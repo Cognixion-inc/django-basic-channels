@@ -1,8 +1,8 @@
-from scipy.signal import butter, freqz, lfilter, square
+from scipy.signal import butter, lfilter
 from mne.filter import notch_filter
 from brainflow.data_filter import DataFilter, WindowFunctions
 from brainflow import BrainFlowInputParams, BoardIds, BoardShim
-from time import sleep
+from time import sleep, time
 from matplotlib import pyplot as plt
 import json
 from channels.generic.websocket import WebsocketConsumer
@@ -37,6 +37,7 @@ def usbPort():
 
     return usb_port
 
+
 def startSession():
     params = BrainFlowInputParams()
     params.serial_port = usbPort()
@@ -57,10 +58,12 @@ def startSession():
 
     return board, eeg_channels, sampling_rate
 
+
 def endSession(board):
     board.stop_stream()
     board.release_session()
     print("Board Session Ended!")
+
 
 def preprocessing(data, eeg_chx, srate):
 
@@ -99,6 +102,7 @@ def preprocessing(data, eeg_chx, srate):
 
     return filt_data
 
+
 def psd(data, eeg_chx, ch_names, srate, condition, graph=True, display=False):
     nfft = 1024
     psd = [[[] for i in range(len(eeg_chx))] for j in range(data.shape[0])]
@@ -106,7 +110,7 @@ def psd(data, eeg_chx, ch_names, srate, condition, graph=True, display=False):
     for trial in data:
         for chx in range(len(trial)):
             psd[trl][chx] = np.array(DataFilter.get_psd_welch(trial[chx], nfft, nfft // 2, srate,
-                                                        WindowFunctions.HAMMING.value))
+                                                              WindowFunctions.HAMMING.value))
         trl += 1
     if graph:
         high = round((nfft * 35)/srate)
@@ -127,7 +131,7 @@ def psd(data, eeg_chx, ch_names, srate, condition, graph=True, display=False):
                 " Epoch Power Spectral Density (Trial " + str(trl) + ")"
             fig.suptitle(title)
             clrs = ['blue', 'red', 'orange', 'purple',
-                'pink', 'green', 'brown', 'gray']
+                    'pink', 'green', 'brown', 'gray']
             lg_clrs = ['bx', 'gx', 'rx', 'kx']
             for r in range(rows):
                 for c in range(2):
@@ -145,13 +149,13 @@ def psd(data, eeg_chx, ch_names, srate, condition, graph=True, display=False):
                         for harmonic in harmonics:
                             if harmonic[0] == 8:
                                 ax[c].plot(trial[r*2+c][1, int(harmonic[1])], trial[r*2+c][0, int(harmonic[1])]+space,
-                                              lg_clrs[h], label="SSVEP")
+                                           lg_clrs[h], label="SSVEP")
                             if harmonic[0] == 12:
                                 ax[c].plot(trial[r*2+c][1, int(harmonic[1])], trial[r*2+c][0, int(harmonic[1])]+space,
-                                              lg_clrs[h], label="SSMVEP")
+                                           lg_clrs[h], label="SSMVEP")
                             else:
                                 ax[c].plot(trial[r*2+c][1, int(harmonic[1])], trial[r*2+c][0, int(harmonic[1])]+space,
-                                              lg_clrs[h])
+                                           lg_clrs[h])
                             h += 1
                         ch_ind = r*2+c
                         ch_title = "Channel " + ch_names[ch_ind]
@@ -183,6 +187,7 @@ def psd(data, eeg_chx, ch_names, srate, condition, graph=True, display=False):
 
     return psd
 
+
 class CCA(object):
 
     def __init__(self, frequencies, fs=250):
@@ -194,58 +199,59 @@ class CCA(object):
         self.targets = len(frequencies)
         self.frequencies = frequencies
         self.fs = fs
-    
+
     def refSignals(self, samples, freq):
         '''
             PURPOSE: Generates sinusoidal reference signals for given frequency
-            
+
             samples: length of the EEG data
             freq: frequency of reference signals
         '''
-        
-        refSignals = np.zeros(shape=(samples,4))
-        
+
+        refSignals = np.zeros(shape=(samples, 4))
+
         timePoints = np.arange(0, samples/self.fs, 1.0/self.fs)
         f0 = 2 * np.pi * freq * timePoints
         f1 = 2 * f0
-        
-        refSignals[:,0] = np.cos(f0)
-        refSignals[:,1] = np.cos(f1)
-        refSignals[:,2] = np.sin(f0)
-        refSignals[:,3] = np.sin(f1)
-        
+
+        refSignals[:, 0] = np.cos(f0)
+        refSignals[:, 1] = np.cos(f1)
+        refSignals[:, 2] = np.sin(f0)
+        refSignals[:, 3] = np.sin(f1)
+
         return refSignals
-    
-        
-    def classify(self, data): 
+
+    def classify(self, data):
         '''
             PURPOSE: Performs CCA to determine frequency of flashing target
-            
+
             data: EEG data - assumes format to be num of channels x num of samples 
         '''
         numSamples = data.shape[0]
         numChannels = data.shape[1]
-        
+
         cca = sk.CCA(n_components=1)
-        ccaCoeff = np.zeros(shape=(self.targets,numChannels))
-        pVal = np.zeros(shape=(self.targets,numChannels))
-                            
+        ccaCoeff = np.zeros(shape=(self.targets, numChannels))
+        pVal = np.zeros(shape=(self.targets, numChannels))
+
         for target in range(self.targets):
             for ch in range(numChannels):
                 refSigs = self.refSignals(numSamples, self.frequencies[target])
-                cca.fit(data[:,ch:ch+1], refSigs)
-                X_c, Y_c = cca.transform(data[:,ch:ch+1], refSigs)
+                cca.fit(data[:, ch:ch+1], refSigs)
+                X_c, Y_c = cca.transform(data[:, ch:ch+1], refSigs)
                 X_c = X_c.flatten()
                 Y_c = Y_c.flatten()
-                ccaCoeff[target][ch], pVal[target][ch] = scipy.stats.pearsonr(X_c, Y_c)
-                
+                ccaCoeff[target][ch], pVal[target][ch] = scipy.stats.pearsonr(
+                    X_c, Y_c)
+
         if numChannels > 1:
             ccaCoeff = np.around(np.average(ccaCoeff, axis=1), 4)
             pVal = np.around(np.average(pVal, axis=1), 4)
-            
+
         index = int(np.where(ccaCoeff == np.max(ccaCoeff))[0])
-        
+
         return int(self.frequencies[index]), ccaCoeff, pVal
+
 
 class ChatConsumer(WebsocketConsumer):
     def connect(self):
@@ -260,6 +266,8 @@ class ChatConsumer(WebsocketConsumer):
 
         self.tr = 0
         self.num_trials = 3
+        self.startTrial = []
+        self.endTrial = []
         self.target_freqs = [10, 12, 20, 24]
         self.ch_names = ['PO3', 'O1', 'Oz', 'O2', 'PO4', 'POz']
         self.ssvep_data = [[] for x in range(self.num_trials)]
@@ -270,6 +278,88 @@ class ChatConsumer(WebsocketConsumer):
         directory = './Results/'
         if not os.path.isdir(directory):
             os.makedirs(directory)
+
+    def end(self):
+        for i in range(len(self.endTrial)):
+            self.ssvep_data[i] = self.allData[:, self.startTrial[i]:self.endTrial[i]]
+            self.baseline_data[i] = self.allData[:, self.endTrial[i]:self.startTrial[i+1]]
+            ssvep_name = "Results/SSVEP_RawData_Trial_" + str(i+1) + ".csv"
+            baseline_name = "Results/Baseline_RawData_Trial_" + str(i+1) + ".csv"
+            pd.DataFrame(self.ssvep_data[i]).to_csv(ssvep_name, sep='\t', index_label="Channel")
+            pd.DataFrame(self.baseline_data[i]).to_csv(baseline_name, sep='\t', index_label="Channel")
+
+    def processing(self):
+        # preprocessing
+        ssvep_filter = preprocessing(
+            self.ssvep_data, self.eeg_chx, self.srate)
+        baseline_filter = preprocessing(
+            self.baseline_data, self.eeg_chx, self.srate)
+
+        # psd
+        ssvep_psd = psd(ssvep_filter, self.eeg_chx,
+                        self.ch_names, self.srate, "SSVEP")
+        baseline_psd = psd(baseline_filter, self.eeg_chx,
+                           self.ch_names, self.srate, "Baseline", graph=False)
+
+        # cca
+        ssvep_res = np.zeros(shape=(len(ssvep_filter), 1))
+        ssvep_coeff = np.zeros(
+            shape=(len(ssvep_filter), len(self.target_freqs)))
+        ssvep_pval = np.zeros(
+            shape=(len(ssvep_filter), len(self.target_freqs)))
+        ssvep_cca_res = CCA(self.target_freqs, self.srate)
+        trl = 0
+
+        for trial in ssvep_filter:
+            ssvep_res[trl], ssvep_coeff[trl], ssvep_pval[trl] = ssvep_cca_res.classify(
+                trial.T)
+            trl += 1
+
+        ind = [x for x in range(1, self.num_trials+1)]
+        cols = [str(x) + ' Hz' for x in self.target_freqs]
+        ssvep_cca = pd.DataFrame(ssvep_coeff, index=ind, columns=cols)
+        ssvep_cca_pval = pd.DataFrame(ssvep_pval, index=ind, columns=cols)
+
+        trl = 1
+        for res in ssvep_res:
+            ssvep_cca.at[trl, 'Result'] = str(int(res)) + " Hz"
+            trl += 1
+
+        ssvep_cca.to_csv("Results/SSVEP_CCA.txt",
+                         sep='\t', index_label="Trial")
+        ssvep_cca_pval.to_csv("Results/SSVEP_PVAL.txt",
+                              sep='\t', index_label="Trial")
+
+        # erp activity
+        info = mne.create_info(self.ch_names, self.srate, ch_types=[
+                               'eeg']*len(self.eeg_chx))
+        info.set_montage('standard_1020')
+
+        ssvep_ave = np.mean(ssvep_filter, axis=0)
+        ssvep_evoked = mne.EvokedArray(
+            ssvep_ave, info, comment='ssvep', nave=self.num_trials)
+
+        fig_ssvep = ssvep_evoked.plot_topomap(ch_type='eeg', sensors='r+', size=2, show=False,
+                                              show_names=True, colorbar=True)
+        fig_ssvep.savefig("Results/SSVEP_Average_ERP_Activity.jpeg")
+
+        # snr
+        foi = 10  # fundamental freq
+        foi_peak = round((1024 * foi)/self.srate)
+        snr_ssvep = np.zeros((self.num_trials, len(self.eeg_chx)))
+
+        for trl in range(self.num_trials):
+            for chx in range(len(self.eeg_chx)):
+                bsln_val = baseline_psd[trl][chx][0, foi_peak]
+                ssvep_val = ssvep_psd[trl][chx][0, foi_peak]
+                snr_ssvep[trl][chx] = round(ssvep_val/bsln_val, 3)
+
+        cols = [x for x in self.ch_names]
+        snr_vep = pd.DataFrame(snr_ssvep, index=ind, columns=cols)
+        snr_vep['Average'] = np.around(np.average(snr_ssvep, axis=1), 3)
+
+        snr_vep.to_csv("Results/SSVEP_SNR.txt",
+                       sep='\t', index_label="Trial")
 
     def receive(self, text_data):
         text_data_json = json.loads(text_data)
@@ -283,15 +373,14 @@ class ChatConsumer(WebsocketConsumer):
                     'message': message
                 }
             )
-        elif (message == 'Start!'):
+            _ = self.board.get_board_data()
+            self.startTime = round(time()*1000)
+
+        elif (message[0:6] == 'Start!'):
             trial = "Trial " + str(self.tr+1)
-            if self.tr == 0:
-                _ = self.board.get_board_data()
-            else:
-                self.baseline_data[self.tr-1] = np.array(self.board.get_board_data())
-                baseline_name = "Results/Baseline_RawData_Trial_" + str(self.tr) + ".csv"
-                pd.DataFrame(self.baseline_data[self.tr-1]).to_csv(
-                    baseline_name, sep='\t', index_label="Channel")
+            sTime = ((int(message[6:]) - self.startTime)/1000) * self.srate
+            self.startTrial.append(round(sTime))
+            print(trial)
 
             async_to_sync(self.channel_layer.group_send)(
                 self.room_group_name,
@@ -300,93 +389,25 @@ class ChatConsumer(WebsocketConsumer):
                     'message': trial
                 }
             )
-        elif (message == 'Done!'):
-            self.ssvep_data[self.tr] = np.array(self.board.get_board_data())
-            ssvep_name = "Results/SSVEP_RawData_Trial_" + str(self.tr+1) + ".csv"
-            pd.DataFrame(self.ssvep_data[self.tr]).to_csv(
-                ssvep_name, sep='\t', index_label="Channel")
-
+        elif (message[0:5] == 'Done!'):
+            print(str("End Trial " + str(self.tr+1)))
+            eTime = ((int(message[5:]) - self.startTime)/1000) * self.srate + 1 # add one sample bc indexing
+            self.endTrial.append(round(eTime))
             self.tr += 1
-        elif (message == 'Complete!'):
-            self.ssvep_data[self.tr] = np.array(self.board.get_board_data())
-            ssvep_name = "Results/SSVEP_RawData_Trial_" + str(self.tr+1) + ".csv"
-            pd.DataFrame(self.ssvep_data[self.tr]).to_csv(
-                ssvep_name, sep='\t', index_label="Channel")
+        elif (message[0:9] == 'Complete!'):
+            print(str("End Trial " + str(self.tr+1)))
+            eTime = ((int(message[9:]) - self.startTime)/1000) * self.srate + 1 # add one sample bc indexing
+            self.endTrial.append(round(eTime))
 
             sleep(5)
 
-            self.baseline_data[self.tr] = np.array(self.board.get_board_data())
-            baseline_name = "Results/Baseline_RawData_Trial_" + str(self.tr+1) + ".csv"
-            pd.DataFrame(self.baseline_data[self.tr]).to_csv(
-                baseline_name, sep='\t', index_label="Channel")
-
+            self.allData = np.array(self.board.get_board_data())
+            self.startTrial.append(len(self.allData[0]))
             endSession(self.board)
 
-            # preprocessing
-            ssvep_filter = preprocessing(
-                self.ssvep_data, self.eeg_chx, self.srate)
-            baseline_filter = preprocessing(
-                self.baseline_data, self.eeg_chx, self.srate)
+            self.end()
 
-            # psd
-            ssvep_psd = psd(ssvep_filter, self.eeg_chx,
-                            self.ch_names, self.srate, "SSVEP")
-            baseline_psd = psd(baseline_filter, self.eeg_chx,
-                            self.ch_names, self.srate, "Baseline", graph=False)
-
-            # cca
-            ssvep_res = np.zeros(shape=(len(ssvep_filter), 1))
-            ssvep_coeff = np.zeros(shape=(len(ssvep_filter), len(self.target_freqs)))
-            ssvep_pval = np.zeros(shape=(len(ssvep_filter), len(self.target_freqs)))
-            ssvep_cca_res = CCA(self.target_freqs, self.srate)
-            trl = 0
-
-            for trial in ssvep_filter:
-                ssvep_res[trl], ssvep_coeff[trl], ssvep_pval[trl] = ssvep_cca_res.classify(
-                    trial.T)
-                trl += 1
-
-            ind = [x for x in range(1, self.num_trials+1)]
-            cols = [str(x) + ' Hz' for x in self.target_freqs]
-            ssvep_cca = pd.DataFrame(ssvep_coeff, index=ind, columns=cols)
-            ssvep_cca_pval = pd.DataFrame(ssvep_pval, index=ind, columns=cols)
-
-            trl = 1
-            for res in ssvep_res:
-                ssvep_cca.at[trl, 'Result'] = str(int(res)) + " Hz"
-                trl += 1
-
-            ssvep_cca.to_csv("Results/SSVEP_CCA.txt", sep='\t', index_label="Trial")
-            ssvep_cca_pval.to_csv("Results/SSVEP_PVAL.txt",
-                                sep='\t', index_label="Trial")
-
-            # erp activity 
-            info = mne.create_info(self.ch_names, self.srate, ch_types=['eeg']*len(self.eeg_chx))
-            info.set_montage('standard_1020')
-
-            ssvep_ave = np.mean(ssvep_filter, axis=0)
-            ssvep_evoked = mne.EvokedArray(ssvep_ave, info, comment='ssvep', nave=self.num_trials)
-
-            fig_ssvep = ssvep_evoked.plot_topomap(ch_type='eeg', sensors='r+', size=2, show=False, 
-                                            show_names=True, colorbar=True)
-            fig_ssvep.savefig("Results/SSVEP_Average_ERP_Activity.jpeg")
-
-            # snr
-            foi = 10 # fundamental freq
-            foi_peak = round((1024 * foi)/self.srate)
-            snr_ssvep = np.zeros((self.num_trials, len(self.eeg_chx)))
-
-            for trl in range(self.num_trials):
-                for chx in range(len(self.eeg_chx)):
-                    bsln_val = baseline_psd[trl][chx][0, foi_peak]
-                    ssvep_val = ssvep_psd[trl][chx][0, foi_peak]
-                    snr_ssvep[trl][chx] = round(ssvep_val/bsln_val, 3)
-                    
-            cols = [x for x in self.ch_names]
-            snr_vep = pd.DataFrame(snr_ssvep, index=ind, columns=cols)
-            snr_vep['Average'] = np.around(np.average(snr_ssvep, axis=1), 3)
-
-            snr_vep.to_csv("Results/SSVEP_SNR.txt", sep='\t', index_label="Trial")
+            self.processing()
 
             async_to_sync(self.channel_layer.group_send)(
                 self.room_group_name,
@@ -396,12 +417,12 @@ class ChatConsumer(WebsocketConsumer):
                 }
             )
 
-        print(message)
+        #print(message)
 
     def chat_message(self, event):
         message = event['message']
 
         self.send(text_data=json.dumps({
-            'type':'chat',
-            'message':message
+            'type': 'chat',
+            'message': message
         }))

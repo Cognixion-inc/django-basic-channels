@@ -27,15 +27,17 @@
             }))
         }
 
-        let m = 0;
         let diameter = 200;
-        let start;
+        let dt;
+        let m;
+        let freq = 10;
+        let start_trial = false;
+        let end_trial = false;
 
         function setup() {
             createCanvas(1000, 600);
+            background(200);
             noStroke();
-            fill(m);
-            frameRate(10);
 
             b = createButton("Start");
             b.position(9, 120);
@@ -48,43 +50,62 @@
             this.animate = 0;
             this.update = function () {
                 if (this.animate == 1) {
-                    cond1 = frameCount <= start + 100;
-                    cond2 = frameCount > start + 150 && frameCount <= start + 250;
-                    cond3 = frameCount > start + 300 && frameCount <= start + 400;
+                    const now = new Date().getTime();
+                    dt = now - start;
+                    trial1 = dt <= 10000; // trial 1
+                    trial2 = dt > 15000 && dt <= 25000; // trial 2
+                    trial3 = dt > 30000 && dt <= 40000; // trial 3
+                    
+                    baseline1 = dt > 10000 && dt <= 15000; // baseline tr 1
+                    baseline2 = dt > 25000 && dt <= 30000; // baseline tr 2
 
-                    pause1 = frameCount > start + 100 && frameCount <= start + 150;
-                    pause2 = frameCount > start + 250 && frameCount <= start + 300;
-
-                    if (cond1 || cond2 || cond3) {
-                        if (frameCount === start + 151 || frameCount === start + 301) {
+                    if (trial1 || trial2 || trial3) {
+                        if (start_trial === false) {
+                            let message = "Start!" + now;
                             chatSocket.send(JSON.stringify({
-                                'message': 'Start!'
+                                'message': message
                             }))
+                            start_trial = true;
+                            done_trial = false;
                         }
-                        background(200, 200, 200);
+
+                        background(200);
+                        noStroke();
                         ellipse(width / 2, height / 2, diameter, diameter);
 
-                        if (m === 0) {
-                            m = 255;
-                        } else {
+                        dt *= 0.001
+                        val = sin(2 * PI * dt * freq);
+
+                        if (val >= 0) {
                             m = 0;
+                        } else {
+                            m = 255;
                         }
 
                         fill(m);
-                    } else if (pause1 || pause2) {
-                        ellipse(width / 2, height / 2, diameter, diameter);
-                        fill(200, 200, 200)
-                        if (frameCount === start + 101 || frameCount === start + 251) {
+                        
+                        console.log(now);
+                    } else if (baseline1 || baseline2) {
+                        if (done_trial === false) {
+                            let message = "Done!" + now;
                             chatSocket.send(JSON.stringify({
-                                'message': 'Done!'
+                                'message': message
                             }))
+                            done_trial = true;
+                            start_trial = false;
+                            console.log("end of trial");
                         }
-                    } else {
+                        noStroke();
                         ellipse(width / 2, height / 2, diameter, diameter);
-                        fill(200, 200, 200)
+                        fill(200);
+                    } else {
+                        noStroke();
+                        ellipse(width / 2, height / 2, diameter, diameter);
+                        fill(200);
                         noLoop();
+                        let message = "Complete!" + now;
                         chatSocket.send(JSON.stringify({
-                            'message': 'Complete!'
+                            'message': message
                         }))
                         let finalMessage = document.getElementById('messages')
                         finalMessage.innerHTML = "Computing Metrics...";
@@ -94,15 +115,17 @@
         }
 
         function draw() {
+            if (ssvep.animate === 1) {
+                const draw_now = new Date().getTime();
+                console.log(draw_now)
+            }
             ssvep.update();
         }
 
         function animate() {
             ssvep.animate = 1;
-            chatSocket.send(JSON.stringify({
-                'message': 'Start!'
-            }))
-            start = frameCount;
+            start = new Date().getTime();
+            console.log("start trial") 
         }
 
         chatSocket.onmessage = function (e) {
