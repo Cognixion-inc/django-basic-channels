@@ -1,0 +1,67 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2638
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 const startTime = new Date().getTime();\
+const fillPos = (0, 0, 0);\
+const fillNeg = (255, 255, 255);\
+const diameter = 150;\
+const freq1 = 1;\
+const freq2 = 50;\
+let ssvepColor;\
+let button;\
+let isActive = false;\
+\
+\
+function setup() \{\
+  createCanvas(400, 400, WEBGL);\
+  background(220);\
+  \
+  button = createButton("start");\
+  button.position(0,0);\
+  button.mousePressed(changeState);\
+\}\
+\
+function changeState() \{\
+  isActive = !isActive;\
+\}\
+\
+//Should have button functionality - starting and stopping ssvep\
+function startTrial()\{\
+  flashingEffect(freq1);\
+\}\
+\
+function flashingEffect(freq1)\{\
+  let frequency = freq1;\
+  var dt = 0;\
+  \
+  while(dt <= 3000)\{ //only draws the ellipse on the last run, why?\
+    let currentTime = new Date().getTime();\
+    dt = currentTime - startTime;\
+    \
+    timeVar = dt*0.001;\
+    var val = sin(2*PI*timeVar*frequency);\
+\
+    if(val >=0)\{\
+      ssvepColor = fillPos;\
+    \}\
+    else\{\
+      ssvepColor = fillNeg;\
+    \}\
+\
+    fill(ssvepColor);\
+    noStroke();\
+    ellipse(0, 0, diameter);\
+  \}\
+\}\
+\
+function draw() \{\
+  if (isActive) \{\
+    startTrial();\
+  \}\
+\}\
+\
+}
