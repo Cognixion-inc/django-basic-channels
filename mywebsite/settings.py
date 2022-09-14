@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'chat',
+    'kishuovert',
 ]
 
 ASGI_APPLICATION = 'mywebsite.asgi.application'
