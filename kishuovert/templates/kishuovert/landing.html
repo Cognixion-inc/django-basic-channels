@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <title>Lobby</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/p5.min.js"></script>
+</head>
+
+<body>
+    <h1>Kishu Overt Assessment</h1>
+
+    <h3>
+        <div id="messages">Connecting to board. Please wait...</div>
+    </h3>
+
+    <script type="text/javascript">
+        let url = `ws://${window.location.host}/ws/socket-server/`
+
+        const chatSocket = new WebSocket(url)
+
+        chatSocket.onopen = function (e) {
+            chatSocket.send(JSON.stringify({
+                'message': 'Ready to Begin!'
+            }))
+        }
+
+        chatSocket.onmessage = function (e) {
+            let data = JSON.parse(e.data)
+            console.log('Data:', data)
+
+            if (data.type === 'chat') {
+                let messages = document.getElementById('messages')
+
+                messages.innerHTML = data.message;
+            }
+
+        }
+
+        let diameter = 200;
+        let dt;
+        let m;
+        let freq = 10;
+        let start_trial = false;
+        let end_trial = false;
+
+        function setup() {
+            createCanvas(1000, 600);
+            background(200);
+            noStroke();
+
+            b = createButton("Start");
+            b.position(9, 120);
+            b.size(50)
+            b.mousePressed(animate);
+            ssvep = new animator();
+        }
+
+        function animator() {
+            this.animate = 0;
+            this.update = function () {
+                if (this.animate == 1) {
+                    const now = new Date().getTime();
+                    dt = now - start;
+                    trial1 = dt <= 10000; // trial 1
+                    trial2 = dt > 15000 && dt <= 25000; // trial 2
+                    trial3 = dt > 30000 && dt <= 40000; // trial 3
+                    
+                    baseline1 = dt > 10000 && dt <= 15000; // baseline tr 1
+                    baseline2 = dt > 25000 && dt <= 30000; // baseline tr 2
+
+                    if (trial1 || trial2 || trial3) {
+                        if (start_trial === false) {
+                            let message = "Start!" + now;
+                            chatSocket.send(JSON.stringify({
+                                'message': message
+                            }))
+                            start_trial = true;
+                            done_trial = false;
+                        }
+
+                        // Trial Stimulus Generation
+
+                        background(200);
+                        noStroke();
+                        ellipse(width / 2, height / 2, diameter, diameter);
+
+                        dt *= 0.001
+                        val = sin(2 * PI * dt * freq);
+
+                        if (val >= 0) {
+                            m = 0;
+                        } else {
+                            m = 255;
+                        }
+
+                        fill(m);
+                    } else if (baseline1 || baseline2) {
+                        if (done_trial === false) {
+                            let message = "Done!" + now;
+                            chatSocket.send(JSON.stringify({
+                                'message': message
+                            }))
+                            done_trial = true;
+                            start_trial = false;
+                            console.log("end of trial");
+                        }
+
+                        // Intertrial Rest Period Generation
+
+                        noStroke();
+                        ellipse(width / 2, height / 2, diameter, diameter);
+                        fill(200);
+                    } else {
+                        let message = "Complete!" + now;
+                        chatSocket.send(JSON.stringify({
+                            'message': message
+                        }))
+                        let finalMessage = document.getElementById('messages')
+                        finalMessage.innerHTML = "Computing Metrics...";
+
+                        // End of Assessment Generation
+
+                        noStroke();
+                        ellipse(width / 2, height / 2, diameter, diameter);
+                        fill(200);
+                        noLoop();
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ssvep.update();
+        }
+
+        function animate() {
+            ssvep.animate = 1;
+            start = new Date().getTime();
+            console.log("start trial") 
+        }
+
+    </script>
+
+</body>
+
+</html>
