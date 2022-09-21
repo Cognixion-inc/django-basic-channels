@@ -87,24 +87,20 @@ class Processing(object):
         _ = self.board.get_board_data()
         self.startTime = round(time()*1000)
 
-    def start(self, trialStart):
-        sTime = ((trialStart - self.startTime)/1000) * self.sRate
-        self.startTrial.append(round(sTime))
-
-    def end(self, trialEnd, lastTrial=False):
-        eTime = ((trialEnd - self.startTime)/1000) * self.sRate
-        self.endTrial.append(round(eTime))
+    def timing(self, trialTime, cond, lastTrial=False):
+        tTime = ((trialTime - self.startTime)/1000) * self.sRate
+        if cond == 'start':
+            self.startTrial.append(round(tTime))
+        elif cond == 'end':
+            self.endTrial.append(round(tTime))
 
         if lastTrial:
-            self.complete()
-    
-    def complete(self):
-        sleep(5)
-        self.allData = np.array(self.board.get_board_data())
-        self.startTrial.append(len(self.allData[0]))
-        self.cnxBoard.endSession()
-        self.createTrials()
-        self.processingPipeline()
+            sleep(5)
+            self.allData = np.array(self.board.get_board_data())
+            self.startTrial.append(len(self.allData[0]))
+            self.cnxBoard.endSession()
+            self.createTrials()
+            self.processingPipeline()
 
     def createTrials(self):
         for i in range(len(self.endTrial)):
@@ -357,12 +353,12 @@ class BackendSocket(WebsocketConsumer):
         text_data_json = json.loads(text_data)
         message = text_data_json['message']
 
-        if (message == 'Ready to Begin!'):
+        if (message == 'Ready!'):
             async_to_sync(self.channel_layer.group_send)(
                 self.room_group_name,
                 {
                     'type': 'chat_message',
-                    'message': message
+                    'message': 'Ready to Begin!'
                 }
             )
 
@@ -370,7 +366,7 @@ class BackendSocket(WebsocketConsumer):
 
         elif (message[0:6] == 'Start!'):
             trial = "Trial " + str(self.trial+1)
-            self.data.start(int(message[6:]))
+            self.data.timing(int(message[6:]), cond='start')
 
             async_to_sync(self.channel_layer.group_send)(
                 self.room_group_name,
@@ -380,10 +376,10 @@ class BackendSocket(WebsocketConsumer):
                 }
             )
         elif (message[0:5] == 'Done!'):
-            self.data.end(int(message[5:]))
+            self.data.timing(int(message[5:]), cond='end')
             self.trial += 1
         elif (message[0:9] == 'Complete!'):
-            self.data.end(int(message[9:]), lastTrial=True)
+            self.data.timing(int(message[9:]), cond='end', lastTrial=True)
 
             async_to_sync(self.channel_layer.group_send)(
                 self.room_group_name,
@@ -392,8 +388,6 @@ class BackendSocket(WebsocketConsumer):
                     'message': 'Overt Assessment Complete!'
                 }
             )
-
-        #print(message)
 
     def chat_message(self, event):
         message = event['message']
